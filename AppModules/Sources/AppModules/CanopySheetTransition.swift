@@ -7,13 +7,35 @@ extension PresentationLinkTransition {
     /// A sheet — real detents, grabber and rubber-banding — with an arbitrary SwiftUI view
     /// filling the space *above* it, in the presentation's container view.
     static func canopySheet(
-        recedesPresentingView: Bool = false,
+        fractions: [CGFloat] = [],
         isInteractive: Bool = true
     ) -> PresentationLinkTransition {
         .custom(
             options: .init(isInteractive: isInteractive),
-            CanopySheetTransition(recedesPresentingView: recedesPresentingView)
+            CanopySheetTransition(fractions: fractions)
         )
+    }
+}
+
+extension UISheetPresentationController.Detent.Identifier {
+    /// Derived from the value so every fraction gets its own identifier, which UIKit requires.
+    static func fraction(_ fraction: CGFloat) -> Self {
+        Self("fraction-\(fraction)")
+    }
+}
+
+extension UISheetPresentationController.Detent {
+    /// A detent at a fraction of the tallest height available to the sheet.
+    ///
+    /// The resolver's value is a height *within the sheet's safe area*, so this is a fraction of
+    /// the usable space rather than of the screen.
+    static func fraction(
+        _ fraction: CGFloat,
+        identifier: UISheetPresentationController.Detent.Identifier
+    ) -> UISheetPresentationController.Detent {
+        .custom(identifier: identifier) { context in
+            context.maximumDetentValue * fraction
+        }
     }
 }
 
@@ -27,10 +49,14 @@ extension PresentationLinkTransition {
 /// > (`SheetPresentationController.swift:531`, `_shouldDismissByDragging`).
 struct CanopySheetTransition: PresentationLinkTransitionRepresentable {
 
-    /// Before iOS 26, a sheet scales the screen behind it back into a rounded, inset card. There
-    /// is no system switch for it, so `false` undoes it frame by frame. A no-op from iOS 26 on,
-    /// where the effect no longer exists.
-    var recedesPresentingView = false
+    /// Detents are a plain property, so they can change while the sheet is on screen — see
+    /// `updateUIPresentationController`.
+    var fractions: [CGFloat] = []
+
+    @MainActor
+    private var detents: [UISheetPresentationController.Detent] {
+        fractions.map { .fraction($0, identifier: .fraction($0)) } + [.medium(), .large()]
+    }
 
     func makeUIPresentationController(
         presented: UIViewController,
@@ -42,7 +68,7 @@ struct CanopySheetTransition: PresentationLinkTransitionRepresentable {
             presentedViewController: presented,
             presenting: presenting
         )
-        presentationController.detents = [.medium(), .large()]
+        presentationController.detents = detents
         presentationController.selectedDetentIdentifier = .medium
         presentationController.prefersGrabberVisible = true
         // Naming the *largest* detent as undimmed switches the system dimming view off at every
@@ -52,14 +78,33 @@ struct CanopySheetTransition: PresentationLinkTransitionRepresentable {
         // > it, and tap-outside-to-dismiss goes away because that gesture lives on the dimming
         // > view that no longer exists.
         presentationController.largestUndimmedDetentIdentifier = .large
-        presentationController.recedesPresentingView = recedesPresentingView
         return presentationController
     }
 
+    /// `detents` is a settable property, so the set can change while the sheet is up. Wrapping it
+    /// in `animateChanges` is what makes the sheet travel to its new resting place instead of
+    /// jumping there.
+    ///
+    /// > Note: `invalidateDetents()` is the companion call, needed only when a custom detent's
+    /// > resolver closes over something *outside* the context it is handed. These resolvers only
+    /// > use `context.maximumDetentValue`, so replacing the array is enough.
     func updateUIPresentationController(
         presentationController: CanopySheetPresentationController,
         context: Context
-    ) {}
+    ) {
+        let identifiers = detents.map(\.identifier)
+        guard presentationController.detents.map(\.identifier) != identifiers else { return }
+
+        presentationController.animateChanges {
+            let selected = presentationController.selectedDetentIdentifier
+            presentationController.detents = detents
+            // Re-assert the selection: dropping the detent the sheet is resting on would otherwise
+            // send it somewhere UIKit picks.
+            if let selected, identifiers.contains(selected) {
+                presentationController.selectedDetentIdentifier = selected
+            }
+        }
+    }
 }
 
 /// Everything visual is SwiftUI — `SheetCanopy`. This class only hosts it and sizes it to the
@@ -68,9 +113,6 @@ struct CanopySheetTransition: PresentationLinkTransitionRepresentable {
 /// to the sheet's edge, and its bottom edge is the edge. Nothing else has to be passed in except
 /// which detent it rests on.
 final class CanopySheetPresentationController: UISheetPresentationController {
-
-    /// See `CanopySheetTransition.recedesPresentingView`.
-    var recedesPresentingView = false
 
     private var displayLink: CADisplayLink?
 
@@ -142,15 +184,6 @@ final class CanopySheetPresentationController: UISheetPresentationController {
         syncCanopyState()
     }
 
-    /// The canopy's height once the sheet is resting on the medium detent — the point the artwork
-    /// stops at. Read from the *model* layer, which already holds the destination while the sheet
-    /// animates, so a layout pass mid-animation cannot record a half-way value.
-    private var settledCanopyHeight: CGFloat {
-        guard let presentedView, let containerView else { return 0 }
-        let top = containerView.layer.convert(presentedView.layer.bounds, from: presentedView.layer).minY
-        return max(top - containerView.bounds.minY, 0)
-    }
-
     /// The sheet moves without a layout pass on the container while it is being dragged, so
     /// following the edge means reading the presentation layer every frame.
     ///
@@ -185,37 +218,19 @@ final class CanopySheetPresentationController: UISheetPresentationController {
         // that delegate, and the write is guarded, so this only reaches SwiftUI when the detent
         // actually flips.
         syncCanopyState()
-        holdPresentingViewStill()
     }
 
     /// Assigning `rootView` is how a value-type view is updated from UIKit. Guarded, so SwiftUI
-    /// is only invalidated when one of these actually changes — not on every frame.
+    /// is only invalidated when the detent actually flips — which, since it only flips once the
+    /// sheet settles, is rare enough that polling it from the display link costs nothing.
     private func syncCanopyState() {
         if canopy.rootView.detent != selectedDetentIdentifier {
             canopy.rootView.detent = selectedDetentIdentifier
         }
-        // Re-measured rather than captured once, so a rotation cannot leave a stale value behind.
-        if selectedDetentIdentifier == .medium, canopy.rootView.mediumHeight != settledCanopyHeight {
-            canopy.rootView.mediumHeight = settledCanopyHeight
+        let identifiers = detents.map(\.identifier)
+        if canopy.rootView.detents != identifiers {
+            canopy.rootView.detents = identifiers
         }
-    }
-
-    /// UIKit does not transform the presenting controller's own view — it wraps it in a
-    /// `UIDropShadowView` and transforms that. Measured on iOS 18.6 at the large detent: scale
-    /// 0.9204, ty 27.2, corner radius 10. Undoing it on that wrapper each frame is the only way
-    /// out; there is no property for it. On iOS 26 the wrapper is already identity, so the guard
-    /// makes this free.
-    private func holdPresentingViewStill() {
-        guard !recedesPresentingView,
-              let wrapper = presentingViewController.view.superview,
-              wrapper.transform != .identity || wrapper.layer.cornerRadius != 0
-        else { return }
-
-        CATransaction.begin()
-        CATransaction.setDisableActions(true)
-        wrapper.transform = .identity
-        wrapper.layer.cornerRadius = 0
-        CATransaction.commit()
     }
 
     /// Resizing the host is the whole mechanism: SwiftUI re-lays out into the new height, so the
@@ -241,84 +256,37 @@ struct SheetCanopy: View {
     /// through unchanged.
     var detent: UISheetPresentationController.Detent.Identifier?
 
-    /// The canopy's height with the sheet resting on medium. The freeze needs a place to freeze
-    /// at, and that is the one number the canopy cannot measure for itself — the detent only says
-    /// *whether* the sheet is expanded, never *how far* medium was.
-    var mediumHeight: CGFloat?
-
-    /// How far past the medium detent the sheet has travelled, 0...1. Continuous, so it tracks
-    /// the drag itself rather than waiting for the sheet to settle.
-    private func expansion(in height: CGFloat) -> Double {
-        guard let mediumHeight, mediumHeight > 0 else { return 0 }
-        return min(max((mediumHeight - height) / mediumHeight, 0), 1)
-    }
+    /// Every detent the sheet currently offers. Changes while the sheet is up, so it doubles as
+    /// the readout for detents added at runtime.
+    var detents: [UISheetPresentationController.Detent.Identifier] = []
 
     var body: some View {
         GeometryReader { proxy in
-            let expansion = expansion(in: proxy.size.height)
-            // Rides the bottom edge — the sheet's edge — until the canopy is shorter than it was
-            // at medium. `max` is the freeze: past that point the anchor stops moving.
-            let y = max(proxy.size.height, mediumHeight ?? proxy.size.height) - 24
-
+            // Sits on the bottom edge, which is the sheet's top edge, so it rides the sheet.
             Image(systemName: "mountain.2.fill")
                 .font(.system(size: 32, weight: .thin))
                 .foregroundStyle(.white.opacity(0.9))
                 .shadow(color: .black.opacity(0.25), radius: 20, y: 8)
-                .opacity(1 - expansion)
-                .position(x: proxy.size.width / 2, y: y)
+                .position(x: proxy.size.width / 2, y: proxy.size.height - 24)
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .background {
+                .background(alignment: .top) {
                     VStack(alignment: .trailing, spacing: 6) {
                         Text("custom canopy")
                             .font(.footnote.weight(.semibold))
 
-                        Text("\(Int(proxy.size.height))pt · \(detent?.rawValue ?? "–") · art \(Int((1 - expansion) * 100))%")
+                        Text("\(Int(proxy.size.height))pt · \(detent?.rawValue ?? "–")")
                             .font(.caption)
                             .monospaced()
 
-                        Spacer()
+                        Text("\(detents.count) detents: \(detents.map(\.rawValue).joined(separator: ", "))")
+                            .font(.system(size: 9))
+                            .monospaced()
+                            .multilineTextAlignment(.trailing)
                     }
+                    .fixedSize(horizontal: false, vertical: true)
                     .foregroundStyle(.white.opacity(0.9))
                 }
-//            ZStack(alignment: .bottom) {
-//                LinearGradient(
-//                    colors: [
-//                        .black.opacity(0.2 + 0.35 * expansion),
-//                        .indigo.opacity(0.3 + 0.45 * expansion),
-//                    ],
-//                    startPoint: .top,
-//                    endPoint: .bottom
-//                )
-//
-//                // Sits on the bottom edge, which is the sheet's edge — no coordinates needed.
-//                Circle()
-//                    .fill(.indigo)
-//                    .frame(width: proxy.size.width * 1.4, height: proxy.size.width * 1.4)
-//                    .blur(radius: 70)
-//                    .opacity(0.55)
-//                    .offset(y: proxy.size.width * 0.7)
-//
-//                Image(systemName: "mountain.2.fill")
-//                    .font(.system(size: 16, weight: .thin))
-//                    .foregroundStyle(.white.opacity(0.9))
-//                    .shadow(color: .black.opacity(0.25), radius: 20, y: 8)
-////                    .opacity(1 - expansion)
-////                    .position(x: proxy.size.width / 2, y: artworkY(in: height))
-//
-//                VStack(spacing: 6) {
-//                    Text("custom canopy")
-//                        .font(.footnote.weight(.semibold))
-//
-//                    Text("\(Int(height))pt to the sheet · art \(Int((1 - expansion) * 100))%")
-//                        .font(.caption)
-//                        .monospaced()
-//                }
-//                .foregroundStyle(.white.opacity(0.9))
-//                .padding(.top, 70)
-//                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
-//            }
         }
-//        .ignoresSafeArea()
     }
 }
 
@@ -327,12 +295,24 @@ struct CanopySheetDemo {
 
     @ObservableState
     struct State {
+        /// Pushed down by whoever presents the sheet: the detent set is theirs, this is just the
+        /// fact the button needs to render.
+        var canAddDetent = true
         var message = ""
     }
 
     enum Action: BindableAction {
+        case addDetentButtonTapped
         case binding(BindingAction<State>)
+        case delegate(Delegate)
         case dismissButtonTapped
+
+        @CasePathable
+        enum Delegate {
+            /// The detent set belongs to whoever presents the sheet, not to its contents, so this
+            /// asks rather than does.
+            case addDetentRequested
+        }
     }
 
     @Dependency(\.dismiss) var dismiss
@@ -342,7 +322,12 @@ struct CanopySheetDemo {
 
         Reduce { state, action in
             switch action {
-            case .binding:
+            case .addDetentButtonTapped:
+                return .run { send in
+                    await send(.delegate(.addDetentRequested), animation: .default)
+                }
+
+            case .binding, .delegate:
                 return .none
 
             case .dismissButtonTapped:
@@ -366,6 +351,13 @@ struct CanopySheetDemoView: View {
 
                 TextField("Type something", text: $store.message)
                     .textFieldStyle(.roundedBorder)
+
+                Button("Add a 0.2 detent") {
+                    store.send(.addDetentButtonTapped)
+                }
+                .buttonStyle(.bordered)
+                .disabled(!store.canAddDetent)
+                .frame(maxWidth: .infinity)
 
                 Button("Dismiss") {
                     store.send(.dismissButtonTapped)

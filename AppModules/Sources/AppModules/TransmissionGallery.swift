@@ -23,6 +23,9 @@ struct TransmissionGallery {
 
     @ObservableState
     struct State { 
+        /// Detents configure the presentation, so they live with whoever presents it. Starts as
+        /// the system pair; the sheet can ask for more at runtime.
+        var canopyFractions: [CGFloat] = []
         @Presents var destination: Destination.State?
         var swatches: IdentifiedArrayOf<Swatch> = IdentifiedArray(uniqueElements: Swatch.all)
     }
@@ -45,7 +48,9 @@ struct TransmissionGallery {
                 return .none
 
             case .canopySheetButtonTapped:
-                state.destination = .canopySheet(CanopySheetDemo.State())
+                state.destination = .canopySheet(
+                    CanopySheetDemo.State(canAddDetent: !state.canopyFractions.contains(0.2))
+                )
                 return .none
 
             case .cornerPopupButtonTapped:
@@ -55,6 +60,17 @@ struct TransmissionGallery {
             // Swapping `destination` while something is already presented is the interesting
             // path: Transmission has to dismiss one presentation controller and stand up
             // another, in one state mutation.
+            case .destination(.presented(.canopySheet(.delegate(.addDetentRequested)))):
+                guard !state.canopyFractions.contains(0.2) else { return .none }
+                state.canopyFractions.append(0.2)
+                // Case paths are read-only here — `enum.case = value` is not writable, so the
+                // child's state is taken out, changed and put back.
+                if case .canopySheet(var demo)? = state.destination {
+                    demo.canAddDetent = false
+                    state.destination = .canopySheet(demo)
+                }
+                return .none
+
             case .destination(.presented(.anchoredPopup(.delegate(.selected(let item))))),
                  .destination(.presented(.cornerPopup(.delegate(.selected(let item))))):
                 switch item {
@@ -140,7 +156,7 @@ struct TransmissionGalleryView: View {
                         .background(.background, in: .rect(cornerRadius: 14, style: .continuous))
                         .presentation(
                             $store.scope(state: \.destination?.canopySheet, action: \.destination.canopySheet),
-                            transition: .canopySheet()
+                            transition: .canopySheet(fractions: store.canopyFractions)
                         ) { $sheetStore in
                             CanopySheetDemoView(store: sheetStore)
                         }
@@ -204,10 +220,6 @@ struct TransmissionGalleryView: View {
             }
             .background(Color(.systemGroupedBackground))
             .navigationTitle("Transmission")
-            .task {
-                try? await Task.sleep(for: .seconds(2))
-                store.send(.canopySheetButtonTapped, animation: .default)
-            }
             .destination(
                 $store.scope(state: \.destination?.push, action: \.destination.push),
                 transition: .slide(initialOpacity: 0)

@@ -97,13 +97,31 @@ two: the canopy's own height carries the continuous position, and the detent dri
 (swap content, fade something) with an explicit `.animation(_:value:)` so the step does not read as
 a glitch.
 
-**The pre-iOS-26 receding background.** Before iOS 26 a sheet scales the screen behind it into a
-rounded inset card, and there is no property to turn it off. It is not applied to the presenting
-controller's view — UIKit wraps that view in a `UIDropShadowView` and transforms *that* (measured
-on iOS 18.6 at `.large`: scale 0.9204, ty 27.2, corner radius 10). `CanopySheetTransition`'s
-`recedesPresentingView: false` undoes it on that wrapper each frame. From iOS 26 the effect is gone
-and the wrapper is already identity, so the same code is a no-op — which is why this has to be
-checked on an older runtime (`iOS18Test` simulator) rather than the default one.
+**A detent's height cannot be asked for on demand.** `Detent.resolvedValue(in:)` looks like it
+would answer "how tall is medium here?", and its context is a two-property protocol you can
+implement — but the system detents' resolvers call a *private* `_containerBounds` on the context,
+so a hand-rolled one crashes with `unrecognized selector`. UIKit's note that this is "intended to
+be used inside `customDetentWithIdentifier:resolver:`" is a hard requirement, not a suggestion.
+Measure the sheet instead.
+
+Measuring it has its own trap: the reference height must be captured **once**, not re-measured.
+Every "is it at rest?" test fails somewhere — a layout pass lands mid-animation, a finger drag
+moves the sheet with no animation attached (so "no animation" reads as "at rest" for the whole
+gesture), and scroll-to-expand is driven by a gesture *inside* the sheet that the presentation
+controller cannot see. `CanopySheetPresentationController` captures it in
+`presentationTransitionDidEnd`, as a fraction of the container so rotation recomputes it.
+
+**The pre-iOS-26 receding background is not worth fighting.** Before iOS 26 a sheet scales the
+screen behind it into a rounded inset card, and there is no property to turn it off — the full
+public surface of `UISheetPresentationController` and `UIPresentationController` has nothing for
+it, and the private `_setShouldScaleDownBehindDescendantSheets:` found in UIKitCore is not
+reachable: nothing in the presentation responds to it and no loaded class declares it.
+
+Where it comes from is worth knowing: UIKit does not touch the presenting controller's own view,
+it wraps that view in a `UIDropShadowView` and transforms *that* (measured on iOS 18.6 at `.large`:
+scale 0.9204, ty 27.2, corner radius 10). Undoing it on the wrapper each frame looks like it works
+in a screenshot but does not hold up in use, so that workaround was tried and removed. From iOS 26
+the effect is gone entirely.
 
 ### Putting a view behind a presentation
 
