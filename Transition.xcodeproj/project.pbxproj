@@ -6,14 +6,18 @@
 	objectVersion = 77;
 	objects = {
 
+/* Begin PBXBuildFile section */
+		CB2A37603027C33000634CA1 /* AppModules in Frameworks */ = {isa = PBXBuildFile; productRef = CB2A37613027C33000634CA1 /* AppModules */; };
+/* End PBXBuildFile section */
+
 /* Begin PBXFileReference section */
-		CB2A37483027C32700634CA1 /* Trans.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Trans.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		CB2A37483027C32700634CA1 /* Transition.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Transition.app; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
-		CB2A374A3027C32700634CA1 /* Trans */ = {
+		CB2A374A3027C32700634CA1 /* Transition */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
-			path = Trans;
+			path = Transition;
 			sourceTree = "<group>";
 		};
 /* End PBXFileSystemSynchronizedRootGroup section */
@@ -23,6 +27,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				CB2A37603027C33000634CA1 /* AppModules in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -32,7 +37,7 @@
 		CB2A373F3027C32700634CA1 = {
 			isa = PBXGroup;
 			children = (
-				CB2A374A3027C32700634CA1 /* Trans */,
+				CB2A374A3027C32700634CA1 /* Transition */,
 				CB2A37493027C32700634CA1 /* Products */,
 			);
 			sourceTree = "<group>";
@@ -40,7 +45,7 @@
 		CB2A37493027C32700634CA1 /* Products */ = {
 			isa = PBXGroup;
 			children = (
-				CB2A37483027C32700634CA1 /* Trans.app */,
+				CB2A37483027C32700634CA1 /* Transition.app */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -48,9 +53,9 @@
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
-		CB2A37473027C32700634CA1 /* Trans */ = {
+		CB2A37473027C32700634CA1 /* Transition */ = {
 			isa = PBXNativeTarget;
-			buildConfigurationList = CB2A37533027C32800634CA1 /* Build configuration list for PBXNativeTarget "Trans" */;
+			buildConfigurationList = CB2A37533027C32800634CA1 /* Build configuration list for PBXNativeTarget "Transition" */;
 			buildPhases = (
 				CB2A37443027C32700634CA1 /* Sources */,
 				CB2A37453027C32700634CA1 /* Frameworks */,
@@ -61,13 +66,14 @@
 			dependencies = (
 			);
 			fileSystemSynchronizedGroups = (
-				CB2A374A3027C32700634CA1 /* Trans */,
+				CB2A374A3027C32700634CA1 /* Transition */,
 			);
-			name = Trans;
+			name = Transition;
 			packageProductDependencies = (
+				CB2A37613027C33000634CA1 /* AppModules */,
 			);
-			productName = Trans;
-			productReference = CB2A37483027C32700634CA1 /* Trans.app */;
+			productName = Transition;
+			productReference = CB2A37483027C32700634CA1 /* Transition.app */;
 			productType = "com.apple.product-type.application";
 		};
 /* End PBXNativeTarget section */
@@ -85,7 +91,7 @@
 					};
 				};
 			};
-			buildConfigurationList = CB2A37433027C32700634CA1 /* Build configuration list for PBXProject "Trans" */;
+			buildConfigurationList = CB2A37433027C32700634CA1 /* Build configuration list for PBXProject "Transition" */;
 			developmentRegion = en;
 			hasScannedForEncodings = 0;
 			knownRegions = (
@@ -99,7 +105,7 @@
 			projectDirPath = "";
 			projectRoot = "";
 			targets = (
-				CB2A37473027C32700634CA1 /* Trans */,
+				CB2A37473027C32700634CA1 /* Transition */,
 			);
 		};
 /* End PBXProject section */
@@ -178,7 +184,7 @@
 				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
-				IPHONEOS_DEPLOYMENT_TARGET = 26.5;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
 				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
 				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
 				MTL_FAST_MATH = YES;
@@ -236,7 +242,7 @@
 				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
-				IPHONEOS_DEPLOYMENT_TARGET = 26.5;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
 				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
 				MTL_ENABLE_DEBUG_INFO = NO;
 				MTL_FAST_MATH = YES;
@@ -266,7 +272,7 @@
 					"@executable_path/Frameworks",
 				);
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = "yakubets-v.Trans";
+				PRODUCT_BUNDLE_IDENTIFIER = "yakubets-v.Transition";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SWIFT_APPROACHABLE_CONCURRENCY = YES;
@@ -298,7 +304,7 @@
 					"@executable_path/Frameworks",
 				);
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = "yakubets-v.Trans";
+				PRODUCT_BUNDLE_IDENTIFIER = "yakubets-v.Transition";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SWIFT_APPROACHABLE_CONCURRENCY = YES;
@@ -313,7 +319,7 @@
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
-		CB2A37433027C32700634CA1 /* Build configuration list for PBXProject "Trans" */ = {
+		CB2A37433027C32700634CA1 /* Build configuration list for PBXProject "Transition" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				CB2A37513027C32800634CA1 /* Debug */,
@@ -322,7 +328,7 @@
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
-		CB2A37533027C32800634CA1 /* Build configuration list for PBXNativeTarget "Trans" */ = {
+		CB2A37533027C32800634CA1 /* Build configuration list for PBXNativeTarget "Transition" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				CB2A37543027C32800634CA1 /* Debug */,
@@ -332,6 +338,13 @@
 			defaultConfigurationName = Release;
 		};
 /* End XCConfigurationList section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		CB2A37613027C33000634CA1 /* AppModules */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = AppModules;
+		};
+/* End XCSwiftPackageProductDependency section */
 	};
 	rootObject = CB2A37403027C32700634CA1 /* Project object */;
 }
